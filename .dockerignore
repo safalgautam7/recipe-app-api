@@ -1,0 +1,40 @@
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore virtual environment
+venv/
+pyvenv/
+env/
+*.env
+
+# Ignore editor and OS-generated files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Ignore logs and local database files
+*.log
+*.sqlite3
+
+# Ignore compiled files
+*.o
+*.so
+*.out
+
+# Ignore Docker-related files (if they shouldn't be copied)
+docker-compose.yml
+Dockerfile
+
+# Ignore static and media files (if using external storage)
+staticfiles/
+media/
+
+# Ignore Git and dependencies
+.git/
+.gitignore
+node_modules/
