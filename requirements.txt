@@ -3,3 +3,4 @@ django-cors-headers
 djangorestframework
 psycopg2
 black
+drf-spectacular
