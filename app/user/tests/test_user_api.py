@@ -21,8 +21,12 @@ def create_user(**params):
 class PublicUserApiTests(TestCase):
     """Test the public feature of the user API."""
     
-    def setUp(self):
-        self.client = APIClient()
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        # Wait for db connection
+        from django.db import connections
+        connections['default'].ensure_connection()
     
     def test_create_user_success(self):
         """Test creating a user is successful."""
@@ -38,39 +42,53 @@ class PublicUserApiTests(TestCase):
         self.assertNotIn('password', res.data)
 
     def test_create_token_for_user(self):
-        """Test generates token for valid credentials."""
-        user_details = {
-            'name': 'Test Name',
+        """Test complete auth flow"""
+        # Clear any existing data
+        get_user_model().objects.all().delete()
+        
+        # Create user through API
+        user_data = {
             'email': 'test@example.com',
-            'password': 'test-user-password123',
+            'password': 'testpass123',
+            'name': 'Test Name'
         }
-        user = create_user(**user_details)
+        create_res = self.client.post(CREATE_USER_URL, user_data)
+        self.assertEqual(create_res.status_code, 201)
         
-        # Debug print
-        print(f"User exists: {get_user_model().objects.filter(email=user_details['email']).exists()}")
-        print(f"Password matches: {user.check_password(user_details['password'])}")
+        # Verify direct database access
+        user = get_user_model().objects.get(email=user_data['email'])
+        self.assertTrue(user.is_active)
+        self.assertTrue(user.check_password(user_data['password']))
         
-        payload = {
-            'email': user_details['email'],
-            'password': user_details['password'],
-        }
-        res = self.client.post(TOKEN_URL, payload)
-    
-        # Debug print
-        print(f"Response data: {res.data}")
+        # Get token
+        token_res = self.client.post(TOKEN_URL, {
+            'email': user_data['email'],
+            'password': user_data['password']
+        })
         
-        self.assertIn('token', res.data)
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertEqual(token_res.status_code, 200)
+        self.assertIn('token', token_res.data)
+
         
     def test_create_token_bad_credentials(self):
         """Test returns error if credentials invalid."""
-        create_user(email='test@example.com', password='goodpass')
-        
+        user=create_user(email='test@example.com', password='goodpass')
         payload = {'email': 'test@example.com', 'password': 'baddpass'}
         res = self.client.post(TOKEN_URL, payload)  
         
         self.assertNotIn('token', res.data)
         self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+        
+    def test_create_token_email_not_found(self):
+        """Test error returned if user not found for given email."""
+        payload = {'email': 'test@example.com', 'password': 'pass123'}
+
+        res = self.client.post(TOKEN_URL, payload)
+        
+        self.assertNotIn('token', res.data)
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+ 
         
     def test_create_token_blank_password(self):
         """Test posting a blank password returns an error."""

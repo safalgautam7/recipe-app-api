@@ -7,14 +7,18 @@ from django.db import models
 from django.contrib.auth.models import AbstractBaseUser,BaseUserManager,PermissionsMixin
 
 
+# models.py
 class UserManager(BaseUserManager):
-    """Manager for users."""
-    def create_user(self,email,password=None,**extra_field):
-        """Create, save and return a new user."""
+    def create_user(self, email, password=None, **extra_fields):
+        """Creates and saves a User with proper password hashing"""
         if not email:
-            raise ValueError('User must have an email address.')
-        user = self.model(email=self.normalize_email(email), **extra_field)
-        user.set_password(password)
+            raise ValueError('Users must have an email address')
+        
+        user = self.model(
+            email=self.normalize_email(email),
+            **extra_fields
+        )
+        user.set_password(password)  # This hashes the password
         user.save(using=self._db)
         return user
     
