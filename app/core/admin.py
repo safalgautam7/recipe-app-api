@@ -43,3 +43,6 @@ class UserAdmin(BaseUserAdmin):
     
 # it tells to use UserAdmin class that we have defined
 admin.site.register(models.User, UserAdmin)
+admin.site.register(models.Recipe)
+admin.site.register(models.Tag)
+admin.site.register(models.Ingredient)
