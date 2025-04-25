@@ -17,9 +17,9 @@ ARG DEV=false
 # Create virtual environment and install dependencies
 RUN python -m venv /py && \
     /py/bin/pip install --no-cache-dir --upgrade pip && \
-    apk add --update --no-cache postgresql-client && \
+    apk add --update --no-cache postgresql-client jpeg-dev && \
     apk add --update --no-cache --virtual .tmp-build-deps \
-        build-base postgresql-dev musl-dev && \
+        build-base postgresql-dev musl-dev zlib zlib-dev && \
     /py/bin/pip install --no-cache-dir -r /tmp/requirements.txt && \
     if [ "$DEV" = "true" ]; then \
         /py/bin/pip install --no-cache-dir -r /tmp/requirements.dev.txt; \
@@ -31,7 +31,11 @@ RUN python -m venv /py && \
 COPY ./app /app
 
 # Add a non-root user for security
-RUN adduser --disabled-password --no-create-home django-user
+RUN adduser --disabled-password --no-create-home django-user && \
+mkdir -p /vol/web/media && \
+mkdir -p /vol/web/static && \
+chown -R django-user:django-user /vol && \
+chmod -R 755 /vol
 
 # Set the virtual environment path
 ENV PATH="/py/bin:$PATH"
