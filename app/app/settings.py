@@ -44,7 +44,6 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "user",
     "recipe",
-    
 ]
 
 MIDDLEWARE = [
@@ -129,8 +128,8 @@ USE_TZ = True
 STATIC_URL = "/static/static/"
 MEDIA_URL = "/static/media/"
 
-MEDIA_ROOT = '/vol/web/media'
-STATIC_ROOT = '/vol/web/static'
+MEDIA_ROOT = "/vol/web/media"
+STATIC_ROOT = "/vol/web/static"
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -138,24 +137,23 @@ STATIC_ROOT = '/vol/web/static'
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
-AUTH_USER_MODEL= 'core.User'
+AUTH_USER_MODEL = "core.User"
 
 
 REST_FRAMEWORK = {
     # YOUR SETTINGS
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
-    'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.TokenAuthentication",
     ],
-
 }
 
 AUTHENTICATION_BACKENDS = [
-    'django.contrib.auth.backends.ModelBackend',
+    "django.contrib.auth.backends.ModelBackend",
 ]
 
 
-#to help upload the image through browser
+# to help upload the image through browser
 SPECTACULAR_SETTINGS = {
-    'COMPONENT_SPLIT_REQUEST':True,
+    "COMPONENT_SPLIT_REQUEST": True,
 }
