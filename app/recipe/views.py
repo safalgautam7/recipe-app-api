@@ -21,7 +21,8 @@ from recipe import serializers
 
 # by using MODELVIEWSET ,
 # You're telling Django REST Framework (DRF):
-# “Hey, I’m using a model, and I want all the standard CRUD actions — just wire them up for me.”
+# “Hey, I’m using a model, and
+# I want all the standard CRUD actions — just wire them up for me.”
 
 # Under the hood, ModelViewSet gives you:
 

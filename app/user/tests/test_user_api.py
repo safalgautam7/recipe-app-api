@@ -73,7 +73,7 @@ class PublicUserApiTests(TestCase):
 
     def test_create_token_bad_credentials(self):
         """Test returns error if credentials invalid."""
-        user = create_user(email="test@example.com", password="goodpass")
+        # user = create_user(email="test@example.com", password="goodpass")
         payload = {"email": "test@example.com", "password": "baddpass"}
         res = self.client.post(TOKEN_URL, payload)
 

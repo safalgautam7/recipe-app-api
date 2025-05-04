@@ -63,7 +63,8 @@ class RecipeSerializer(serializers.ModelSerializer):
             )
             recipe.tags.add(tag_obj)
 
-    # by default nested serializer are read only , so we have to manually define create method
+    # by default nested serializer are read only ,
+    # so we have to manually define create method
     def create(self, validated_data):
         """Create a recipe."""
         tags = validated_data.pop("tags", [])

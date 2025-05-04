@@ -5,3 +5,4 @@ psycopg2
 black
 drf-spectacular
 Pillow
+uwsgi
