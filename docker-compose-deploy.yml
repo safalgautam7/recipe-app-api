@@ -28,13 +28,13 @@ services:
       - POSTGRES_PASSWORD=${DB_PASS}
 
   proxy:
-    build: 
+    build:
       context: ./proxy
     restart: always
     depends_on:
       - app
     ports:
-      - 80:8000
+      - 8000:8000
     volumes:
       - static-data:/vol/static
 
