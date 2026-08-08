@@ -227,6 +227,3 @@ The project is **deployable as-is** (CI + tests + compose + proxy all present). 
 5. **Publish app images** — the CI logs into Docker Hub but never pushes; for reproducible deployments, publish a tagged image and reference it from the deploy compose.
 6. **Harden /api-for-pub** — consider DRF throttling for `/api/user/token/` and `SECURE_*` settings for production.
 
-## License
-
-See your project's license (if any).
