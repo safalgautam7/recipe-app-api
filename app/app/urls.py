@@ -20,13 +20,20 @@ from drf_spectacular.views import (
     SpectacularSwaggerView,
 )
 from django.contrib import admin
+from django.http import JsonResponse
 from django.urls import path, include
 from django.conf.urls.static import static
 from django.conf import settings
 
 
+def health(request):
+    """Simple deployment health check."""
+    return JsonResponse({"status": "ok", "version": "1"})
+
+
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/health/", health, name="health"),
     path("api/schema/", SpectacularAPIView.as_view(), name="api-schema"),
     path(
         "api/docs/",
