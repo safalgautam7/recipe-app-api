@@ -1,6 +1,6 @@
 # Recipe App API
 
-A production-oriented Django REST Framework (DRF) backend for managing recipes, tags, and ingredients, with token-based authentication, image uploads, OpenAPI documentation, and a full Docker/nginx deployment setup.
+A production-oriented Django REST Framework (DRF) backend for managing recipes, tags, and ingredients, with token-based authentication, image uploads, OpenAPI documentation, and a full Docker/nginx deployment setup to see how you can deploy your own server in virutal machine. Read deployment_guide.md
 
 ## Features
 

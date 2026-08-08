@@ -1,4 +1,4 @@
-# Deployment Guide for Beginners
+# Deployment Guide for Starters
 
 This guide walks you step by step from **installing Multipass** all the way to **deploying the Django Recipe API** in a production-like configuration on a free local virtual machine: creating the VM, installing Docker, moving your code over, managing secrets with a `.env` file, launching the stack, redeploying a code change, and cleaning up when you are done.
 
@@ -81,8 +81,8 @@ Three similar-sounding things, three different levels:
 | Concept | Analogy              | What it is                                                                     |
 | ------- | -------------------- | ------------------------------------------------------------------------------- |
 | **VM**  | A computer inside your computer | A whole Ubuntu machine (own CPU, memory, disk, IP) running on your laptop. |
-| **Image** | A cooking recipe / blueprint | A frozen, read-only template containing Python + your code + dependencies. Built once. |
-| **Container** | The dish you cook | A *running* instance of an image, isolated from everything else. |
+| **Image** | A blueprint | A frozen, read-only template containing Python + your code + dependencies. Built once. |
+| **Container** | A *running* instance of an image, isolated from everything else. |
 
 You build **images** once, then Compose creates **containers** from them. In this project Docker Compose creates three containers: `app` (your Django code + uWSGI), `db` (PostgreSQL), and `proxy` (nginx). All three live in the same VM and talk to each other over an internal Docker network.
 
@@ -98,11 +98,11 @@ multipass launch 24.04 --name recipe-vm --cpus 2 --memory 2G --disk 10G
 
 What each part means:
 
-- `24.04` – the OS image to use: Ubuntu 24.04 LTS
-- `--name recipe-vm` – what we call the VM
-- `--cpus 2` – give it 2 CPU cores
-- `--memory 2G` – give it 2 GB of RAM
-- `--disk 10G` – give it 10 GB of disk
+- `24.04` - the OS image to use: Ubuntu 24.04 LTS
+- `--name recipe-vm` - name of vm
+- `--cpus 2` - allocates 2 CPU cores
+- `--memory 2G` - allocates 2 GB of RAM
+- `--disk 10G` - allocates 10 GB of disk
 
 The first launch downloads the Ubuntu image, so it takes a minute or two. Verify:
 
@@ -110,7 +110,7 @@ The first launch downloads the Ubuntu image, so it takes a minute or two. Verify
 multipass list
 ```
 
-You should see `recipe-vm` with a state of `Running` and an IP address like `10.198.x.y`. That IP is private — only your computer can reach the VM, which is exactly what we want for a sandbox.
+You should see `recipe-vm` with a state of `Running` and an IP address like `10.198.x.y`. That IP is private, only your computer can reach the VM, which is exactly what we want for a sandbox.
 
 ---
 
@@ -140,8 +140,8 @@ multipass exec recipe-vm -- python3 --version
 
 Docker is not installed in a fresh Ubuntu VM, so we install two packages:
 
-- `docker.io` – the Docker engine
-- `docker-compose-v2` – the compose plugin (for `docker compose` commands)
+- `docker.io` - the Docker engine
+- `docker-compose-v2` - the compose plugin (for `docker compose` commands)
 
 ```bash
 multipass exec recipe-vm -- sudo bash -c \
@@ -170,7 +170,7 @@ multipass exec recipe-vm -- docker compose version
 
 There are three common ways. For learning, start with the **mount** approach.
 
-### Option A — mount your project folder (recommended for learning)
+### Option A: mount your project folder (recommended for learning)
 
 This makes your local folder appear inside the VM and it *stays live*: when you edit a file on your laptop, the VM sees the change immediately. No SSH or copying needed.
 
@@ -208,7 +208,7 @@ Then your loop is exactly what a real deployment does: change code locally, `git
 
 ### Why environment variables exist
 
-Look at `app/app/settings.py` — configuration is read from environment variables instead of being written in code:
+Look at `app/app/settings.py`, configuration is read from environment variables instead of being written in code:
 
 ```python
 SECRET_KEY = os.environ.get('SECRET_KEY', 'changeme')
@@ -216,9 +216,9 @@ DEBUG = bool(int(os.environ.get('DEBUG', 0)))
 ALLOWED_HOSTS = [] + [h for h in os.environ.get('ALLOWED_HOSTS', '').split(',') if h]
 ```
 
-If someone clones your repo, they get *defaults* (`changeme`, `DEBUG=0`, empty hosts) — never your real secrets. You supply the real values at deployment time.
+If you are cloning the repo, you get *defaults* (`changeme`, `DEBUG=0`, empty hosts) - never your real secrets. You supply the real values at deployment time.
 
-### What a `.env` file is
+### use of .env
 
 Docker Compose can inject variables from a file. In `docker-compose-deploy.yml` you will see placeholders like:
 
@@ -240,8 +240,7 @@ DJANGO_ALLOWED_HOSTS=192.168.1.100
 
 ### Creating the env file in the VM
 
-Create it **inside the VM**, in the `ubuntu` home directory — never in your git checkout. The repo's `.gitignore` already ignores `.env`, and committing secrets is a serious security mistake.
-
+Create it **inside the VM**, in the `ubuntu` home directory, never in your git checkout.
 ```bash
 multipass exec recipe-vm -- bash -c "cat > /home/ubuntu/recipe.env <<'EOF'
 DB_NAME=recipe

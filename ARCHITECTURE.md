@@ -29,9 +29,9 @@ There are **four layers**:
 
 | Component | Container | Base | Role | Exposed port |
 | --------- | --------- | ---- | ---- | ------------ |
-| **nginx** | `proxy` | `nginx-unprivileged` | The front door. Receives every HTTP request, serves static files, proxies everything else to uWSGI. | `8000` (the only one visible to the outside world) |
+| **nginx** | `proxy` | `nginx-unprivileged` |  Receives every HTTP request, serves static files, proxies everything else to uWSGI. | `8000` (the only one visible to the outside world) |
 | **uWSGI** | `app` | `python:3.10-alpine` | Runs the Django application. Implements the Web Server Gateway Interface Protocol that Django needs. | `9000` (internal only) |
-| **Django + DRF** | `app` | (part of app image) | Your actual application: URL routing, views, serializers, models, admin, OpenAPI docs. | — |
+| **Django + DRF** | `app` | (part of app image) | actual application: URL routing, views, serializers, models, admin, OpenAPI docs. | — |
 | **PostgreSQL** | `db` | `postgres:16-alpine` | Stores all data permanently. | `5432` (internal only) |
 | **Docker volumes** | — | — | Persistent storage that outlives containers (database + uploaded files/static). | — |
 
@@ -64,7 +64,7 @@ There are **four layers**:
 
 ## 2. What happens when you request `GET /api/recipe/recipes/`
 
-Here is one request, step by step:
+Here is step by step process:
 
 1. **Your client** (curl, browser, Swagger UI) sends → `GET http://<vm-ip>:8000/api/recipe/recipes/`.
 2. **nginx** accepts the connection on port 8000. The path doesn't start with `/static`, so it proxies with the uwsgi protocol to the `app` container (uWSGI on port 9000).
@@ -95,8 +95,8 @@ services:
     # nginx forwards requests to app:9000 by name
 ```
 
-- Django connects to the DB using `DB_HOST=db` — Compose DNS resolves `db` to the Postgres container's internal IP. No hard-coded IPs anywhere.
-- nginx proxies to `app:9000` — resolves `app` to the uWSGI container.
+- Django connects to the DB using `DB_HOST=db` - Compose DNS resolves `db` to the Postgres container's internal IP. No hard-coded IPs anywhere.
+- nginx proxies to `app:9000` - resolves `app` to the uWSGI container.
 - Postgres never appears outside the network: no `ports:` mapping. The only public entry point is nginx's port 8000.
 
 ---
@@ -135,16 +135,16 @@ further requests → Authorization: Token fee723...  → request.user="deploy@ex
 
 Two kinds of static files in Django have different producers/consumers:
 
-**Static (CSS/JS/admin files)** — read-only code assets:
+**Static (CSS/JS/admin files)** - read-only code assets:
 
 1. `python manage.py collectstatic` (run in `scripts/run.sh`) copies everything (Django admin CSS and DRF assets among them) into `STATIC_ROOT` (`/vol/web/static`).
 2. nginx `location /static { alias /vol/static; }` serves them from the shared volume at high speed. No Django needed.
 
-**Media (uploaded recipe images)** — user data:
+**Media (uploaded recipe images)** - user data:
 1. Client sends a multipart `POST /api/recipe/recipes/<id>/upload-image/`; `RecipeImageSerializer` validates, `Pillow` saves the file under `/vol/web/media/uploads/recipe/<uuid>.jpg`.
 2. Later requests for `/static/media/uploads/recipe/<uuid>.jpg` are served by nginx from the **same shared volume** (`static-data`), which is mounted in both `app` at `/vol/web` and `proxy` at `/vol/static` (they overlay the volume contents).
 
-Why share a volume? Because in production Django literally cannot serve its own media over the socket — the web server must. By mounting the same volume in the app container (writes uploads) and the proxy (serves them) both sides see the same files.
+Why share a volume? Because in production Django literally cannot serve its own media over the socket - the web server must. By mounting the same volume in the app container (writes uploads) and the proxy (serves them) both sides see the same files.
 
 In dev, Django can serve media itself: when `DEBUG=1`, `urls.py` appends `static(settings.MEDIA_URL, document_root=...)`.
 
@@ -178,7 +178,7 @@ The **Dockerfile** builds one image for both. The `DEV=true` build arg appends `
 
 ---
 
-## 8. Your build process (how an image is born)
+## 8. Your build process (how an image is created)
 
 `Dockerfile` steps:
 1. base `python:3.10-alpine`
@@ -230,4 +230,4 @@ The tests produce coverage for `core` (models, admin, commands) and the APIs (`u
 1. Everything public goes through nginx (port 8000). No other port is exposed.
 2. All dynamic traffic ends at Django, which ends in Postgres.
 3. Containers are temporary; volumes are permanent.
-4. Code changes don't apply until you rebuild the image (production) — redeploy via `up -d --build [service]`.
+4. Code changes don't apply until you rebuild the image (production) - redeploy via `up -d --build [service]`.
