@@ -1,8 +1,8 @@
 # Deployment Guide for Starters
 
-This guide walks you step by step from **installing Multipass** all the way to **deploying the Django Recipe API** in a production-like configuration on a free local virtual machine: creating the VM, installing Docker, moving your code over, managing secrets with a `.env` file, launching the stack, redeploying a code change, and cleaning up when you are done.
+This guide walks you step by step from **installing Multipass** all the way to **deploying the Django Recipe API** in a production-like configuration on a free local virtual machine: creating the VM, installing Docker, moving your code over, managing secrets with a `.env` file, launching the stack, redeploying a code change, setting up a firewall, exposing the API publicly via a Cloudflare Tunnel, and cleaning up when you are done.
 
-Everything here is free and runs on your own computer. Nothing is exposed to the public internet.
+Everything in this guide is free. The core deployment runs on your own computer. Sections 14-15 walk you through making it reachable from anywhere on the internet for free.
 
 ---
 
@@ -21,6 +21,9 @@ Everything here is free and runs on your own computer. Nothing is exposed to the
 - [11. Deploying a new code change](#11-deploying-a-new-code-change)
 - [12. Stop, start and delete the VM](#12-stop-start-and-delete-the-vm)
 - [13. Troubleshooting](#13-troubleshooting)
+- [14. Firewall with ufw](#14-firewall-with-ufw)
+- [15. Public access via Cloudflare Tunnel](#15-public-access-via-cloudflare-tunnel)
+- [16. After a restart](#16-after-a-restart)
 
 ---
 
@@ -437,6 +440,207 @@ curl http://<VM-IP>:8000/api/health/
 | Curl gets connection refused | Wrong IP, or the proxy container isn't running | Re-check `multipass list` — the IP can change across restarts. Use the current IP and confirm `docker compose ps` shows the proxy `Up`. |
 | Nothing happens after editing code | You must rebuild the image | Run `up -d --build app`; a live edit alone doesn't affect a running container |
 | Port 8000 already in use on the host | Another app uses it | Change the `ports: 8000:8000` mapping in `docker-compose-deploy.yml` to `8001:8000` |
+| Cloudflare tunnel URL changed after restart | Quick tunnels generate a new random URL every time | Grab the new URL from `/tmp/tunnel.log`, update `DJANGO_ALLOWED_HOSTS`, and redeploy |
+| `400 Bad Request` over the public URL | The tunnel hostname is not in `ALLOWED_HOSTS` | Add the hostname to your env file and redeploy |
+
+---
+
+## 14. Firewall with ufw
+
+**ufw** (Uncomplicated Firewall) is Ubuntu's built-in firewall. It controls which ports are allowed to receive traffic from the outside.
+
+### Why you need it
+
+Even if your VM is on a private IP, a firewall is part of good server hygiene. The rule is simple: **deny everything inbound by default, then open only what you need**.
+
+### Enable it safely
+
+> **Critical:** always allow SSH (`OpenSSH`) *before* enabling ufw. If you forget, ufw will drop the SSH connection and you lose access to the VM permanently — Multipass cannot reconnect.
+
+```bash
+multipass exec recipe-vm -- sudo ufw allow OpenSSH
+multipass exec recipe-vm -- sudo ufw default deny incoming
+multipass exec recipe-vm -- sudo ufw --force enable
+```
+
+Check the rules:
+
+```bash
+multipass exec recipe-vm -- sudo ufw status
+```
+
+You should see:
+
+```
+Status: active
+
+To                         Action      From
+--                         ------      ----
+OpenSSH                    ALLOW       Anywhere
+OpenSSH (v6)               ALLOW       Anywhere (v6)
+```
+
+### Do I need to open port 8000?
+
+**No** — and here is why: a Cloudflare Tunnel (section 15) uses an *outbound* connection from your VM to Cloudflare's edge. The firewall only governs *inbound* traffic. Since traffic arrives through a tunnel that the VM itself initiated, ufw does not interfere. You do not need any `8000` rule.
+
+If you ever run without a tunnel (e.g. local-only or port-forwarding), you would add:
+
+```bash
+multipass exec recipe-vm -- sudo ufw allow 8000/tcp
+```
+
+But with a tunnel in place, keep it deny-all-inbound.
+
+---
+
+## 15. Public access via Cloudflare Tunnel
+
+A **Cloudflare quick tunnel** (`trycloudflare.com`) lets you expose a local service to the public internet for free, with no account, no domain, and no credit card. It works by establishing an *outbound* connection from your VM to Cloudflare's edge — meaning you don't need to open any inbound firewall ports.
+
+### Install cloudflared
+
+```bash
+multipass exec recipe-vm -- bash -c \
+  "curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+  -o /tmp/cloudflared && sudo mv /tmp/cloudflared /usr/local/bin/cloudflared \
+  && sudo chmod +x /usr/local/bin/cloudflared"
+```
+
+Verify:
+
+```bash
+multipass exec recipe-vm -- cloudflared --version
+```
+
+### Start the tunnel in tmux
+
+We use **tmux** so the tunnel keeps running after the command finishes. Install tmux and start a detached session:
+
+```bash
+multipass exec recipe-vm -- bash -c \
+  "sudo apt-get install -y -qq tmux >/dev/null && \
+  tmux new-session -d -s tunnel 'cloudflared tunnel --url http://localhost:8000 > /tmp/tunnel.log 2>&1'"
+```
+
+Wait a few seconds, then grab the public URL:
+
+```bash
+multipass exec recipe-vm -- grep -o 'https://.*\.trycloudflare\.com' /tmp/tunnel.log
+```
+
+It will print something like:
+
+```
+https://coast-maintains-pty-launched.trycloudflare.com
+```
+
+> **Note:** the URL is random and changes every time the tunnel restarts.
+
+### Update ALLOWED_HOSTS
+
+Django rejects requests from hostnames not in `ALLOWED_HOSTS`. Add your tunnel hostname:
+
+```bash
+multipass exec recipe-vm -- bash -c \
+  "sed -i 's/^DJANGO_ALLOWED_HOSTS=.*/DJANGO_ALLOWED_HOSTS=10.198.x.x,localhost,127.0.0.1,<YOUR-TUNNEL-HOSTNAME>/' /home/ubuntu/recipe.env"
+```
+
+Replace `<YOUR-TUNNEL-HOSTNAME>` with the URL you just grabbed.
+
+### Redeploy the app
+
+```bash
+multipass exec recipe-vm -- bash -c \
+  "cd /opt/recipe-app && docker compose -f docker-compose-deploy.yml \
+  --env-file /home/ubuntu/recipe.env up -d --build app"
+```
+
+### Verify from the public URL
+
+Open the Swagger docs in your browser (or use curl):
+
+```
+https://<YOUR-TUNNEL-HOSTNAME>/api/docs/
+```
+
+You should see the interactive Swagger UI. Try creating a user and a recipe — the full API works over the public internet.
+
+### What you just built
+
+```
+friend's phone (any network)
+       |
+       v
+ Cloudflare edge (HTTPS)
+       |
+       v
+ your VM's cloudflared (outbound tunnel)
+       |
+       v
+ nginx :8000 → uWSGI :9000 → Django → PostgreSQL
+```
+
+No inbound ports opened. ufw stays deny-all. The tunnel is the only door, and it was opened from the inside.
+
+---
+
+## 16. After a restart
+
+When you `multipass stop recipe-vm` and later `multipass start recipe-vm`, two things happen:
+
+1. **Docker containers auto-restart** — because all services have `restart: always` in `docker-compose-deploy.yml`, Docker restarts `app`, `db`, and `proxy` automatically when the VM boots.
+
+2. **The Cloudflare tunnel URL changes** — the quick tunnel gives a new random URL each time it starts.
+
+### Restart checklist
+
+```bash
+# 1. start the VM
+multipass start recipe-vm
+
+# 2. start a new tunnel (the old tmux session may be dead)
+multipass exec recipe-vm -- bash -c \
+  "tmux new-session -d -s tunnel 'cloudflared tunnel --url http://localhost:8000 > /tmp/tunnel.log 2>&1'"
+
+# 3. wait a few seconds, then grab the NEW URL
+multipass exec recipe-vm -- grep -o 'https://.*\.trycloudflare\.com' /tmp/tunnel.log
+
+# 4. update ALLOWED_HOSTS with the new hostname
+multipass exec recipe-vm -- bash -c \
+  "sed -i 's/^DJANGO_ALLOWED_HOSTS=.*/DJANGO_ALLOWED_HOSTS=10.198.x.x,localhost,127.0.0.1,<NEW-HOSTNAME>/' /home/ubuntu/recipe.env"
+
+# 5. redeploy
+multipass exec recipe-vm -- bash -c \
+  "cd /opt/recipe-app && docker compose -f docker-compose-deploy.yml \
+  --env-file /home/ubuntu/recipe.env up -d --build app"
+
+# 6. verify
+multipass exec recipe-vm -- curl -s http://localhost:8000/api/health/
+```
+
+### Check that Docker came back up
+
+```bash
+multipass exec recipe-vm -- bash -c \
+  "cd /opt/recipe-app && docker compose -f docker-compose-deploy.yml ps"
+```
+
+All three containers should say `Up`. If the `app` container is restarting repeatedly, check logs:
+
+```bash
+multipass exec recipe-vm -- bash -c \
+  "cd /opt/recipe-app && docker compose -f docker-compose-deploy.yml logs --tail=20 app"
+```
+
+### Why the URL changes
+
+Quick tunnels (`trycloudflare.com`) are designed for temporary demos. Each time `cloudflared tunnel --url` starts, Cloudflare assigns a fresh subdomain. This is free and instant but not permanent. For a **permanent** URL, you would need either:
+
+- A **Cloudflare named tunnel** with a domain you own, or
+- A **Tailscale Funnel** (`https://vm.tailnet.ts.net`) which gives a stable hostname with a free account.
+
+For a demo or exam, the quick tunnel URL works perfectly — just update `ALLOWED_HOSTS` and redeploy after every restart.
 
 ---
 
@@ -451,6 +655,34 @@ docker compose -f docker-compose-deploy.yml --env-file /home/ubuntu/recipe.env u
 
 # Follow logs (live)
 docker compose -f docker-compose-deploy.yml logs -f app
+
+# --- Firewall ---
+sudo ufw allow OpenSSH          # ALWAYS do this first
+sudo ufw default deny incoming
+sudo ufw --force enable
+sudo ufw status                 # verify
+
+# --- Cloudflare Tunnel ---
+# Install
+curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o /tmp/cloudflared
+sudo mv /tmp/cloudflared /usr/local/bin/cloudflared
+sudo chmod +x /usr/local/bin/cloudflared
+
+# Start tunnel (in tmux so it survives)
+tmux new-session -d -s tunnel 'cloudflared tunnel --url http://localhost:8000 > /tmp/tunnel.log 2>&1'
+
+# Grab the public URL
+grep -o 'https://.*\.trycloudflare\.com' /tmp/tunnel.log
+
+# Update ALLOWED_HOSTS and redeploy
+sed -i 's/^DJANGO_ALLOWED_HOSTS=.*/DJANGO_ALLOWED_HOSTS=<IP>,localhost,127.0.0.1,<TUNNEL_HOSTNAME>/' /home/ubuntu/recipe.env
+docker compose -f docker-compose-deploy.yml --env-file /home/ubuntu/recipe.env up -d --build app
+
+# --- After a restart ---
+multipass start recipe-vm
+tmux new-session -d -s tunnel 'cloudflared tunnel --url http://localhost:8000 > /tmp/tunnel.log 2>&1'
+grep -o 'https://.*\.trycloudflare\.com' /tmp/tunnel.log
+# update ALLOWED_HOSTS with new hostname, then redeploy
 
 # Stop the stack but keep data + VM
 docker compose -f docker-compose-deploy.yml down
